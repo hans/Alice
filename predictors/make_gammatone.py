@@ -1,11 +1,12 @@
 """Generate high-resolution gammatone spectrograms"""
 from pathlib import Path
+import sys
 
-from eelbrain import *
+from eelbrain import load, resample, save
 from trftools import gammatone_bank
 
 
-DATA_ROOT = Path("~").expanduser() / 'Data' / 'Alice'
+DATA_ROOT = Path(sys.argv[1])
 STIMULUS_DIR = DATA_ROOT / 'stimuli'
 
 for i in range(1, 13):

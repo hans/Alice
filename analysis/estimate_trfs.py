@@ -1,6 +1,7 @@
 """This script estimates TRFs for several models and saves them"""
 from pathlib import Path
 import re
+import sys
 
 import eelbrain
 import mne
@@ -8,7 +9,7 @@ import trftools
 
 
 STIMULI = [str(i) for i in range(1, 13)]
-DATA_ROOT = Path("~").expanduser() / 'Data' / 'Alice'
+DATA_ROOT = Path(sys.argv[1])
 PREDICTOR_DIR = DATA_ROOT / 'predictors'
 EEG_DIR = DATA_ROOT / 'eeg'
 SUBJECTS = [path.name for path in EEG_DIR.iterdir() if re.match(r'S\d*', path.name)]
