@@ -6,9 +6,9 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.11.3
+#       jupytext_version: 1.13.8
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
@@ -19,19 +19,20 @@ from pathlib import Path
 import eelbrain
 from matplotlib import pyplot
 import mne
+import numpy as np
 import re
 import trftools
-
+from tqdm.auto import tqdm
 
 # Data locations
-DATA_ROOT = Path("~").expanduser() / 'Data' / 'Alice'
+DATA_ROOT = Path("/om/data/public/language-eeg/brennan2018-v2")
 PREDICTOR_DIR = DATA_ROOT / 'predictors'
 EEG_DIR = DATA_ROOT / 'eeg'
-TRF_DIR = DATA_ROOT / 'TRFs'
+TRF_DIR = Path.cwd().parent / "out"
 SUBJECTS = [path.name for path in EEG_DIR.iterdir() if re.match(r'S\d*', path.name)]
 
 # Where to save the figure
-DST = DATA_ROOT / 'figures'
+DST = Path.cwd().parent / "out" / "figures"
 DST.mkdir(exist_ok=True)
 
 # Configure the matplotlib figure style
@@ -55,15 +56,18 @@ pyplot.rcParams.update(RC)
 # Test whether adding predcitors that distinguish function and content words improves the predictive power of the TRF models.
 
 # Load predictive power of all models
-models = ['words', 'words+lexical', 'acoustic+words', 'acoustic+words+lexical']
+models = ['words', 'words+lexical', 'acoustic+words', 'acoustic+words+lexical', "acoustic+words+lexical+RNN"]
 rows = []
 for model in models:
     for subject in SUBJECTS:
-        trf = eelbrain.load.unpickle(TRF_DIR / subject / f'{subject} {model}.pickle')
-        rows.append([subject, model, trf.proportion_explained])
+        try:
+            trf = eelbrain.load.unpickle(TRF_DIR / f'{subject} {model}.pickle')
+        except IOError: pass
+        else:
+            rows.append([subject, model, trf.proportion_explained])
 model_data = eelbrain.Dataset.from_caselist(['subject', 'model', 'det'], rows)
 # For more interpretable numbers, express proportion explained in terms of the maximum explained variability of the most complete model
-index = model_data['model'] == 'acoustic+words+lexical'
+index = model_data['model'] == 'acoustic+words+lexical+RNN'
 model_data['det'] *= 100 / model_data[index, 'det'].mean('case').max('sensor')
 
 lexical_model_test = eelbrain.testnd.TTestRelated('det', 'model', 'words+lexical', 'words', match='subject', ds=model_data, tail=1, pmin=0.05)
@@ -74,10 +78,63 @@ p = eelbrain.plot.Topomap(lexical_model_test, ncol=3, title=lexical_model_test, 
 
 # load the TRFs
 rows = []
+model = "acoustic+words+lexical+RNN"
 for subject in SUBJECTS:
-    trf = eelbrain.load.unpickle(TRF_DIR / subject / f'{subject} words+lexical.pickle')
-    rows.append([subject, model, *trf.h_scaled])
+    try:
+        trf = eelbrain.load.unpickle(TRF_DIR / f'{subject} {model}.pickle')
+    except IOError: pass
+    else:
+        rows.append([subject, model, *trf.h_scaled])
 trfs = eelbrain.Dataset.from_caselist(['subject', 'model', *trf.x], rows)
+
+# #### Jon's modification: TRF visualization
+
+import pandas as pd
+import seaborn as sns
+
+
+# +
+def ndvar_to_df(var):
+    if var.has_dim("frequency"):
+        # Compute individual df by frequency and then merge.
+        ret = []
+        for freq in var.get_dim("frequency"):
+            ret_i = ndvar_to_df(var.sub(frequency=freq))
+            ret_i["frequency"] = freq
+            ret.append(ret_i)
+        return pd.concat(ret)
+    else:
+        ret = pd.DataFrame(var.get_data())
+        ret.index.name = "sensor"
+        return ret.reset_index().melt(id_vars=["sensor"], var_name="time")
+
+df = pd.concat(
+    {(case["subject"], var_name): ndvar_to_df(var) for case in tqdm(trfs.itercases())
+     for var_name, var in case.items() if var_name not in ["subject", "model"]},
+    names=["subject", "model", "index"]).droplevel("index") \
+.reset_index()
+
+# Convert sample indices to relative times (sec)
+time_map = dict(enumerate(trfs[0]["word"].get_dim("time")))
+df["time"] = df.time.map(time_map)
+
+df
+
+# +
+sensor = 2
+plot_data = df[(df.sensor == sensor) & df.model.isin(("word", "lexical", "non_lexical", "RNN"))].reset_index()
+sns.lineplot(data=plot_data, x="time", hue="model", y="value")
+
+pyplot.axhline(0, color="grey", alpha=0.5)
+pyplot.axvline(0.3, color="grey", linestyle="--", alpha=0.5)
+pyplot.axvline(0.5, color="grey", linestyle="--", alpha=0.5)
+pyplot.title(f"TRF weights for predictors, sensor {sensor} (central anterior), avg over {len(plot_data.subject.unique())} subjects")
+# -
+
+surp_model_test = eelbrain.testnd.TTestRelated('det', 'model', 'acoustic+words+lexical+RNN', 'acoustic+words+lexical', match='subject', ds=model_data, tail=1, pmin=0.05)
+p = eelbrain.plot.Topomap(surp_model_test, ncol=3, title=surp_model_test)
+
+# #### Back to the programmmed content
 
 word_difference = eelbrain.testnd.TTestRelated('non_lexical + word', 'lexical + word', ds=trfs, pmin=0.05)
 
@@ -186,3 +243,6 @@ figure.text(0.27, 0.37, 'C) Spectrogram by word class', size=10)
 
 figure.savefig(DST / 'Word-class-acoustics.pdf')
 figure.savefig(DST / 'Word-class-acoustics.png')
+# -
+
+

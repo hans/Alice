@@ -10,6 +10,7 @@ import trftools
 from tqdm import tqdm
 
 
+eelbrain.configure(n_workers=6)
 STIMULI = [str(i) for i in range(1, 13)]
 
 def build_models(stimuli, data_dir):
@@ -41,6 +42,9 @@ def build_models(stimuli, data_dir):
     # Function and content word impulses based on the boolean variables in the word-tables
     word_lexical = [eelbrain.event_impulse_predictor(gt.time, value='lexical', ds=ds, name='lexical') for gt, ds in zip(gammatone, word_tables)]
     word_nlexical = [eelbrain.event_impulse_predictor(gt.time, value='nlexical', ds=ds, name='non_lexical') for gt, ds in zip(gammatone, word_tables)]
+    # Surprisal impulses
+    word_rnn = [eelbrain.event_impulse_predictor(gt.time, value="RNN", ds=ds, name='RNN')
+                for gt, ds in zip(gammatone, word_tables)]
 
     # Extract the duration of the stimuli, so we can later match the EEG to the stimuli
     durations = [gt.time.tmax for stimulus, gt in zip(stimuli, gammatone)]
@@ -58,6 +62,7 @@ def build_models(stimuli, data_dir):
         'words+lexical': [word_onsets, word_lexical, word_nlexical],
         'acoustic+words': [gammatone, gammatone_onsets, word_onsets],
         'acoustic+words+lexical': [gammatone, gammatone_onsets, word_onsets, word_lexical, word_nlexical],
+        'acoustic+words+lexical+RNN': [gammatone, gammatone_onsets, word_onsets, word_lexical, word_nlexical, word_rnn],
     }
 
     return models, durations

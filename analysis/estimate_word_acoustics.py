@@ -4,12 +4,12 @@ Estimate deconvolution of the spectrogram depending on function and content word
 from pathlib import Path
 
 import eelbrain
-
+eelbrain.configure(n_workers=6)
 
 # Data locations
-DATA_ROOT = Path("~").expanduser() / 'Data' / 'Alice'
+DATA_ROOT = Path("/om/data/public/language-eeg/brennan2018-v2")
 PREDICTOR_DIR = DATA_ROOT / 'predictors'
-TRF_DIR = DATA_ROOT / 'TRFs'
+TRF_DIR = Path.cwd().parent / "out"
 
 # Collect stimulus data from all trials
 gammatone_trials = []
@@ -41,3 +41,5 @@ eelbrain.save.pickle(trf_word, TRF_DIR / 'gammatone~word.pickle')
 
 trf_lexical = eelbrain.boosting(gammatone, [word, lexical, non_lexical], -0.100, 1.001, partitions=15, partition_results=True, test=True)
 eelbrain.save.pickle(trf_lexical, TRF_DIR / 'gammatone~word+lexical.pickle')
+
+
