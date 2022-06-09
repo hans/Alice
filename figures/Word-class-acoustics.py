@@ -119,6 +119,9 @@ time_map = dict(enumerate(trfs[0]["word"].get_dim("time")))
 df["time"] = df.time.map(time_map)
 
 df
+# -
+
+df[df.model == "RNN"].groupby("sensor").apply(lambda xs: -xs.value.abs().max()).sort_values()
 
 # +
 sensor = 2
@@ -128,7 +131,7 @@ sns.lineplot(data=plot_data, x="time", hue="model", y="value")
 pyplot.axhline(0, color="grey", alpha=0.5)
 pyplot.axvline(0.3, color="grey", linestyle="--", alpha=0.5)
 pyplot.axvline(0.5, color="grey", linestyle="--", alpha=0.5)
-pyplot.title(f"TRF weights for predictors, sensor {sensor} (central anterior), avg over {len(plot_data.subject.unique())} subjects")
+pyplot.title(f"TRF weights for predictors, sensor {sensor}, avg over {len(plot_data.subject.unique())} subjects")
 # -
 
 surp_model_test = eelbrain.testnd.TTestRelated('det', 'model', 'acoustic+words+lexical+RNN', 'acoustic+words+lexical', match='subject', ds=model_data, tail=1, pmin=0.05)
