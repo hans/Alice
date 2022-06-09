@@ -131,3 +131,5 @@ dmypy.json
 
 # Datagrab tracker
 .temppath.pickled
+
+out
